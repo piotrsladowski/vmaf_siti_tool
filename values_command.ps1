@@ -1,4 +1,12 @@
-param ([switch]$fullmode, [string]$input_video_fname)
+param ([switch]$fullmode, [string]$input_video_fname, [string]$test_single_param)
+
+
+if ([string]::IsNullOrEmpty($test_single_param)){
+    Write-Host "Testing all parameters"
+}
+else {
+    Write-Host "Testing single parameter $test_single_param"
+}
 
 $output_directory = "output"
 
@@ -9,6 +17,18 @@ $input_video_fname_extension = (Get-Item $input_video_fname).Extension
 
 $output_video_fname = $null
 
+function Set-VariableValueToDefault {
+    <#
+    .DESCRIPTION
+    Set all variables values to default. Default value is defined in variable dictionary.
+    #>
+    foreach ($var_name in $var_names) {
+        if (!($null -eq (Get-Variable $var_name -ErrorAction SilentlyContinue).Value)){
+            Write-Host "Setting $var_name to default value" -ForegroundColor DarkYellow
+            (Get-Variable $var_name -ErrorAction SilentlyContinue).Value.value = (Get-Variable $var_name -ErrorAction SilentlyContinue).Value.default
+        }
+    }
+}
 
 function Merge-Output-Params-Variable {
     <#
@@ -36,17 +56,30 @@ function Merge-xparams-String {
         if ($var_name -eq $exclusion){
             continue
         }
-        if($null -eq (Get-Variable $var_name -ErrorAction SilentlyContinue).Value){
+
+        $var_value = (Get-Variable $var_name -ErrorAction SilentlyContinue).Value
+        if($null -eq $var_value){
             write-host "Variable $var_name is not defined"
         }
-        elseif ($False -eq $var_value.value) {
-            Write-Host "Option $var_name is not used" -ForegroundColor Yellow
-        }
         else{
-            $correct_var_name = $var_name.Substring(1).Replace("_","-")
-            $x_params += $correct_var_name + "=" + (Get-Variable $var_name -ErrorAction SilentlyContinue).Value.value + ":"
+            if (($False -eq $var_value.value -and ($var_value.value -is [System.Boolean]))) {
+                Write-Host "Option $var_name is not used" -ForegroundColor Yellow
+            }
+            elseif (($True -eq $var_value.value) -and ($var_value.value -is [System.Boolean])){
+                Write-Host $var_value.value -ForegroundColor DarkBlue
+                $correct_var_name = $var_name.Substring(1).Replace("_","-")
+                $x_params += $correct_var_name + "=1" + ":"
+                #Write-Host $x_params -ForegroundColor Green
+            }
+            else{
+                $correct_var_name = $var_name.Substring(1).Replace("_","-")
+                $x_params += $correct_var_name + "=" + (Get-Variable $var_name).Value.value + ":"
+                #Write-Host $x_params
+            }
         }
+
     }
+    # Remove last unnecesary colon
     $x_params = $x_params.Substring(0,$x_params.Length-1)
 
     return $x_params
@@ -58,10 +91,21 @@ function Start-Conversion {
     Start conversion.
     #>
     param ([switch]$fullmode)
-
+    Set-VariableValueToDefault
     foreach ($var_name in $var_names) {
+        if (($var_name -ne $test_single_param) -and !([string]::IsNullOrEmpty($test_single_param))){
+            Write-Host "Skipping variable $var_name" -ForegroundColor DarkYellow
+            continue
+        }
+        Set-VariableValueToDefault
+        $width = $(Get-Host).UI.RawUI.WindowSize.Width
+        $var_name_len = [int]($var_name.Length/2)
+        Write-Host (("=" * ($width/2 - $var_name_len - 9)) -join "") -NoNewline -ForegroundColor Cyan
+        Write-Host "Testing variable $var_name" -ForegroundColor Cyan  -NoNewline
+        Write-Host (("=" * ($width/2 - $var_name_len - 9)) -join "") -ForegroundColor Cyan
         $var_value = (Get-Variable $var_name -ErrorAction SilentlyContinue).Value
 
+        <#
         # Set values of all others variables to default
         foreach ($other_var_name in $var_names){
             if ($other_var_name -eq $var_name){
@@ -71,35 +115,77 @@ function Start-Conversion {
                 (Get-Variable $var_name -ErrorAction SilentlyContinue).Value.value = (Get-Variable $var_name -ErrorAction SilentlyContinue).Value.default
             }
         }
-
+        #>
         # Iterate over all available values of current variable
 
         $i = 1
 
         foreach ($val in $var_value.available_values){
+
+            $x_params_current_variable = [string]::Empty
+
+            Write-Host "Appending last variable" -ForegroundColor DarkBlue
+            $var_value = (Get-Variable $var_name -ErrorAction SilentlyContinue).Value
+            if (($False -eq $val -and ($val -is [System.Boolean]))) {
+                (Get-Variable -Name $var_name -ErrorAction SilentlyContinue).Value.value = $False
+                Write-Host "Option $var_name is not used" -ForegroundColor Yellow
+            }
+            elseif (($True -eq $val) -and ($val -is [System.Boolean])){
+                (Get-Variable -Name $var_name -ErrorAction SilentlyContinue).Value.value = $True
+                Write-Host $var_value.value -ForegroundColor DarkBlue
+                $correct_var_name = $var_name.Substring(1).Replace("_","-")
+                $x_params_current_variable += ":" + $correct_var_name + "=1"
+            }
+            else{
+                (Get-Variable -Name $var_name -ErrorAction SilentlyContinue).Value.value = $val
+                $correct_var_name = $var_name.Substring(1).Replace("_","-")
+                $x_params_current_variable += ":" + $correct_var_name + "=" + $val #(Get-Variable $var_name).Value.value
+                #Write-Host $x_params
+            }
+
+            if ($var_name -eq "_keyint"){
+                $key_int_val = (Get-Variable $var_name -ErrorAction SilentlyContinue).Value.value
+                $min_key_int = [int]([int]$key_int_val/10)
+                if ($min_key_int -lt 1){
+                    $min_key_int = 1
+                }
+                (Get-Variable -Name "_min_keyint" -ErrorAction SilentlyContinue).Value.value = $min_key_int
+                Write-Host "min_keyint set to $((Get-Variable -Name "_min_keyint" -ErrorAction SilentlyContinue).Value.value)" -ForegroundColor Blue
+            }
+            # Create x264-params string without current variable
             $exclusion = $var_name
             $x_params = Merge-xparams-String $exclusion
 
-            (Get-Variable $var_name -ErrorAction SilentlyContinue).Value.value = $val
+            $x_params += $x_params_current_variable
             
-            $_min_keyint.value = [int]([int]$val/10)
-            Write-Host "min-keyint: $_min_keyint" -ForegroundColor Red
-            $correct_var_name = $var_name.Substring(1).Replace("_","-")
-            $x_params += ":" + $correct_var_name + "=" + $val
+            #$_min_keyint.value = [int]([int]$key_int_val/10)
+            #Write-Host "min-keyint: $((Get-Variable -Name "_min_keyint" -ErrorAction SilentlyContinue).Value.value)" -ForegroundColor Red
+            
 
-            $output_fname = $input_video_fname_base_name + "+" + $var_name + "+" + $i
+            
+            #$correct_var_name = $var_name.Substring(1).Replace("_","-")
+            #$x_params += ":" + $correct_var_name + "=" + $val
+
+
+
+
+            #$output_fname = $input_video_fname_base_name + "+" + $var_name + "+" + $i
+            $output_fname = $input_video_fname_base_name + "+" + $var_name + "=" + $val
             $output_fname = Join-Path -Path $output_directory -ChildPath $output_fname
             $output_video_fname = $output_fname + $input_video_fname_extension
 
-            Write-Host "x264-params: $x_params" -ForegroundColor Red
-            ffmpeg -hide_banner -i $input_video_fname -c:v libx264 -b:v 1000k -x264-params $x_params -c:a copy $output_video_fname
+
+
+
+            Write-Host "---------x264-params: $x_params ----------------" -ForegroundColor Red
+            ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v 1000k -x264-params $x_params -c:a copy $output_video_fname
 
             $output_log_fname = $output_fname + ".log"
             Merge-Output-Params-Variable | Out-File -FilePath $output_log_fname -Encoding UTF8 -NoNewline
 
             $output_vmaf_xml_fname = $output_fname + ".xml"
 
-            ffmpeg -hide_banner -i $output_video_fname -i $input_video_fname -lavfi libvmaf=log_path=$($output_vmaf_xml_fname):n_threads=2:feature=name=psnr -f null -
+            ffmpeg -hide_banner -loglevel warning -i $output_video_fname -i $input_video_fname -lavfi libvmaf=log_path=$($output_vmaf_xml_fname):n_threads=2:feature=name=psnr -f null -
 
             $output_vmaf_csv_fname = $output_fname + ".csv"
             #Select-Xml -Path $output_vmaf_fname -XPath "/VMAF/pooledmetrics" | Select-Object -ExpandProperty Node | Select-Object -ExpandProperty InnerText | Add-Content -Path $output_vmaf_fname -Encoding UTF8 -NoNewline
@@ -115,14 +201,17 @@ function Start-Conversion {
 }
 
 
+$width = $(Get-Host).UI.RawUI.WindowSize.Width
+Write-Host (("=" * ($width/2 - 6)) -join "") -NoNewline -ForegroundColor Cyan
+Write-Host "STARTING" -ForegroundColor Magenta  -NoNewline
+Write-Host (("=" * ($width/2 - 6)) -join "") -ForegroundColor Cyan
 
-Write-Host "=============STARTING==============" -ForegroundColor Magenta
 enum var_types {int = 1; float = 2; string = 3; bool = 4}
 
 $_keyint= @{
     default=250
     type=[var_types]::int
-    available_values=10,30,50,100,150,200,300,400,500,600,700,800,900
+    available_values=3,5,10,15,30,45,60,75,100,125,150,200,250,300
     value=$null
 }
 $_min_keyint = @{
@@ -151,7 +240,7 @@ $_b_pyramid = @{
 $_ref = @{
     default = 3
     type=[var_types]::int
-    available_values = 0,2,3#,4,6,8,10,12,14,16
+    available_values = 0,2,3,4,6,8,10,12,14,16
     value=$null
 }
 $_no_deblock = @{default=$False; type=[var_types]::bool; available_values=$False, $True; value=$null}
@@ -184,12 +273,6 @@ $num_of_combinations_full_mesh = 1
 $num_of_combinations = 1
 
 foreach ($var_name in $var_names) {
-    if (!($null -eq (Get-Variable $var_name -ErrorAction SilentlyContinue).Value)){
-        (Get-Variable $var_name -ErrorAction SilentlyContinue).Value.value = (Get-Variable $var_name -ErrorAction SilentlyContinue).Value.default
-    }
-}
-
-foreach ($var_name in $var_names) {
     $var_value = (Get-Variable $var_name -ErrorAction SilentlyContinue).Value
     if ($var_value.available_values.Length -gt 0){
         $num_of_combinations_full_mesh *= $var_value.available_values.Length
@@ -208,13 +291,4 @@ else{
 }
 
 Start-Conversion $fullmode
-
-$command = "-hide_banner -i ./B232.mp4 -c:v libx264 -b:v 1000k -x264-params $x_params -c:a copy -o output.mp4"
-
-#$x_params | ConvertTo-Json
-
-#ffmpeg -hide_banner -i "B232.mp4" -c:v libx264 -b:v 1000k -x264-params $x_params -c:a copy output.mp4
-
-Write-Host $command
-#Write-Host $x_params
 
