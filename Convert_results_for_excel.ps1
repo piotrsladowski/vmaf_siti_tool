@@ -1,5 +1,11 @@
+param ([string]$input_result_file)
+
+$file = Split-Path $input_result_file -Leaf
+
+$output_result_file = "excel_$($file)"
+
 # Read the input CSV file
-$data = Import-Csv -Delimiter ';' -Path "wyniki2.csv" -Header "Filename", "Param", "Value"
+$data = Import-Csv -Delimiter ';' -Path $input_result_file -Header "Filename", "Param", "Value"
 
 # Extract the unique headers from the input data
 $headers = $data.Filename | Select-Object -Unique
@@ -21,13 +27,14 @@ foreach ($row in $data) {
     }
 }
 
-$output.Keys
+#$output.Keys
 $h_line = "Param"
 $headers | ForEach-Object{
     $h_line += ";$_"
 }
 
-$h_line | Out-File -FilePath "output.csv" -Encoding utf8
+Write-Host "Writing new file"
+$h_line | Out-File -FilePath $output_result_file -Encoding utf8
 
 
 # Output the data in the desired format
@@ -43,4 +50,4 @@ $output.Keys | Sort-Object | ForEach-Object {
         }
     }
     $line
-} | Out-File -FilePath "output.csv" -Encoding utf8 -Append
+} | Out-File -FilePath $output_result_file -Encoding utf8 -Append

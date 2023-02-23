@@ -105,22 +105,18 @@ function Start-Conversion {
         Write-Host (("=" * ($width/2 - $var_name_len - 9)) -join "") -ForegroundColor Cyan
         $var_value = (Get-Variable $var_name -ErrorAction SilentlyContinue).Value
 
-        <#
-        # Set values of all others variables to default
-        foreach ($other_var_name in $var_names){
-            if ($other_var_name -eq $var_name){
-                continue
-            }
-            if (!($null -eq (Get-Variable $var_name -ErrorAction SilentlyContinue).Value)){
-                (Get-Variable $var_name -ErrorAction SilentlyContinue).Value.value = (Get-Variable $var_name -ErrorAction SilentlyContinue).Value.default
-            }
-        }
-        #>
         # Iterate over all available values of current variable
 
-        $i = 1
 
         foreach ($val in $var_value.available_values){
+
+            # Checking dependency variables
+            if ($var_name -eq "_aq_strength"){
+                if ((Get-Variable -Name "_aq_mode" -ErrorAction SilentlyContinue).Value.value -eq 0){
+                    Write-Host "AQ mode is disabled. Skipping variable $var_name" -ForegroundColor DarkYellow
+                    continue
+                }
+            }
 
             $x_params_current_variable = [string]::Empty
 
@@ -158,22 +154,9 @@ function Start-Conversion {
 
             $x_params += $x_params_current_variable
             
-            #$_min_keyint.value = [int]([int]$key_int_val/10)
-            #Write-Host "min-keyint: $((Get-Variable -Name "_min_keyint" -ErrorAction SilentlyContinue).Value.value)" -ForegroundColor Red
-            
-
-            
-            #$correct_var_name = $var_name.Substring(1).Replace("_","-")
-            #$x_params += ":" + $correct_var_name + "=" + $val
-
-
-
-
-            #$output_fname = $input_video_fname_base_name + "+" + $var_name + "+" + $i
             $output_fname = $input_video_fname_base_name + "+" + $var_name + "=" + $val
             $output_fname = Join-Path -Path $output_directory -ChildPath $output_fname
             $output_video_fname = $output_fname + $input_video_fname_extension
-
 
 
 
@@ -191,7 +174,6 @@ function Start-Conversion {
             #Select-Xml -Path $output_vmaf_fname -XPath "/VMAF/pooledmetrics" | Select-Object -ExpandProperty Node | Select-Object -ExpandProperty InnerText | Add-Content -Path $output_vmaf_fname -Encoding UTF8 -NoNewline
             Select-Xml -Path $output_vmaf_xml_fname -XPath "/VMAF/pooled_metrics" | ForEach-Object { $_.Node.metric} | ConvertTo-Csv | Add-Content -Path $output_vmaf_csv_fname -Encoding UTF8
 
-            $i++
         }
     }
 
@@ -207,6 +189,9 @@ Write-Host "STARTING" -ForegroundColor Magenta  -NoNewline
 Write-Host (("=" * ($width/2 - 6)) -join "") -ForegroundColor Cyan
 
 enum var_types {int = 1; float = 2; string = 3; bool = 4}
+
+########################### Frame-type options ########################################
+
 
 $_keyint= @{
     default=250
@@ -264,9 +249,84 @@ $_constrained_intra = @{default=$False; type=[var_types]::bool; available_values
 # $_fake_interlaced = $null
 
 
+########################### Ratecontrol ########################################
+
+#$_crf = @{
+#    default = 23
+#    type=[var_types]::int
+#    available_values = 18,19,20,21,22,23,24,25,26,27,28,29,30
+#    value=$null
+#}
+
+$_ipratio = @{
+    default = 1.4
+    type=[var_types]::float
+    available_values = 1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0
+    value=$null
+}
+
+$_pbratio = @{
+    default = 1.3
+    type=[var_types]::float
+    available_values = 1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0
+    value=$null
+}
+
+$_chroma_qp_offset = @{
+    default = 0
+    type=[var_types]::int
+    available_values = -6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6
+    value=$null
+}
+
+$_aq_mode = @{
+    default = 1
+    type=[var_types]::int
+    available_values = 0,1,2
+    value=$null
+}
+
+# use this option if aq_mode != 0
+$_aq_strength = @{
+    default = 1.0
+    type=[var_types]::float
+    available_values = 0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5
+    value=$null
+}
+
+#$_pass = @{
+#    default = $null
+#    type=[var_types]::int
+#    available_values = 1,2,3
+#    value=$null
+#}
+
+$_no_mbtree = @{default=$False; type=[var_types]::bool; available_values=$False, $True; value=$null}
+
+$_qcomp = @{
+    default = 0.6
+    type=[var_types]::float
+    available_values = 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0
+    value=$null
+}
+
+$_cplxblur = @{
+    default = 20.0
+    type=[var_types]::float
+    available_values = 5.0,10.0,15.0,20.0,25.0,30.0,35.0,40.0,45.0,50.0
+    value=$null
+}
+
+$_qblur = @{
+    default = 0.5
+    type=[var_types]::float
+    available_values = 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0
+    value=$null
+}
+
 ##########################
 # Initialize variables
-Set-Variable -Option AllScope -Name "var_names" -Value "_keyint", "_min_keyint", "_no_scenecut", "_scenecut", "_intra_refresh", "_bframes", "_b_adapt", "_b_bias", "_b_pyramid", "_open_gop", "_no_cabac", "_ref", "_no_deblock", "_deblock", "_slices", "_slice_max_size", "_slice_max_mbs", "_tff", "_bff", "_constrained_intra", "_pulldown", "_fake_interlaced"
+Set-Variable -Option AllScope -Name "var_names" -Value "_keyint", "_min_keyint", "_no_scenecut", "_scenecut", "_intra_refresh", "_bframes", "_b_adapt", "_b_bias", "_b_pyramid", "_open_gop", "_no_cabac", "_ref", "_no_deblock", "_deblock", "_slices", "_slice_max_size", "_slice_max_mbs", "_tff", "_bff", "_constrained_intra", "_pulldown", "_fake_interlaced", "_crf", "_ipratio", "_pbratio", "_chroma_qp_offset", "_aq_mode", "_aq_strength", "_pass", "_no_mbtree", "_qcomp", "_cplxblur", "_qblur"
 
 $x_params = [string]::Empty
 $num_of_combinations_full_mesh = 1
