@@ -10,7 +10,6 @@ $data = Import-Csv -Delimiter ';' -Path $input_result_file -Header "Filename", "
 # Extract the unique headers from the input data
 $headers = $data.Filename | Select-Object -Unique
 
-
 # Create a hashtable to hold the output data
 $output = @{}
 
@@ -32,6 +31,7 @@ $h_line = "Param"
 $headers | ForEach-Object{
     $h_line += ";$_"
 }
+$h_line += ";Mean"
 
 Write-Host "Writing new file"
 $h_line | Out-File -FilePath $output_result_file -Encoding utf8
@@ -41,13 +41,18 @@ $h_line | Out-File -FilePath $output_result_file -Encoding utf8
 $output.Keys | Sort-Object | ForEach-Object {
     $key = $_
     $line = "$key"
+    $sum = 0.0
     foreach ($header in $headers) {
         $value = $output[$key][$header]
         if ($value) {
             $line += ";$value"
+            $sum += [float]$value
         } else {
             $line += ";"
         }
     }
+    $mean = $sum / $headers.Count
+    $line += ";$mean"
+    $line = $line -replace '\.', ','
     $line
 } | Out-File -FilePath $output_result_file -Encoding utf8 -Append
