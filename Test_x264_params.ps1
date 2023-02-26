@@ -69,12 +69,10 @@ function Merge-xparams-String {
                 Write-Host $var_value.value -ForegroundColor DarkBlue
                 $correct_var_name = $var_name.Substring(1).Replace("_","-")
                 $x_params += $correct_var_name + "=1" + ":"
-                #Write-Host $x_params -ForegroundColor Green
             }
             else{
                 $correct_var_name = $var_name.Substring(1).Replace("_","-")
                 $x_params += $correct_var_name + "=" + (Get-Variable $var_name).Value.value + ":"
-                #Write-Host $x_params
             }
         }
 

@@ -45,13 +45,16 @@ $output.Keys | Sort-Object | ForEach-Object {
     foreach ($header in $headers) {
         $value = $output[$key][$header]
         if ($value) {
-            $line += ";$value"
             $sum += [float]$value
+            # Round the value to 2 decimal places
+            $value = [math]::Round($value, 3)
+            $line += ";$value"
         } else {
             $line += ";"
         }
     }
     $mean = $sum / $headers.Count
+    $mean = [math]::Round($mean, 3)
     $line += ";$mean"
     $line = $line -replace '\.', ','
     $line
