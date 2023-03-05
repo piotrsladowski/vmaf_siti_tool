@@ -1,5 +1,10 @@
-param ([switch]$fullmode, [string]$input_video_fname, [string]$test_single_param)
+param ([switch]$fullmode, [string]$input_video_fname, [string]$test_single_param, [string]$output_directory)
 
+$num_of_threads = 4
+if ($IsWindows){
+    $processor = Get-ComputerInfo -Property CsProcessors
+    $num_of_threads = $processor.CsProcessors.NumberOfLogicalProcessors
+}
 
 if ([string]::IsNullOrEmpty($test_single_param)){
     Write-Host "Testing all parameters"
@@ -8,9 +13,12 @@ else {
     Write-Host "Testing single parameter $test_single_param"
 }
 
-$output_directory = "output"
+if ([string]::IsNullOrEmpty($output_directory)){
+    $output_directory = "encoded_results"
+}
 
 New-Item -Name $output_directory -ItemType Directory -Force
+$output_directory = Resolve-Path $output_directory
 
 $input_video_fname_base_name = (Get-Item $input_video_fname).BaseName
 $input_video_fname_extension = (Get-Item $input_video_fname).Extension
@@ -152,31 +160,37 @@ function Start-Conversion {
 
             $x_params += $x_params_current_variable
             
-            $output_fname = $input_video_fname_base_name + "+" + $var_name + "=" + $val
-            $output_fname = Join-Path -Path $output_directory -ChildPath $output_fname
-            $output_video_fname = $output_fname + $input_video_fname_extension
+            # Test params per different bitrate
+            $bitrate = $_bitrates.default
+            foreach ($bit in $_bitrates.available_values){
+                $bitrate = $bit
+                Write-Host "Testing bitrate $bitrate" -ForegroundColor Cyan
+                $output_fname = $input_video_fname_base_name + "+" + $var_name + "=" + $val + "+" + $bitrate
+                $output_path = Join-Path -Path $output_directory -ChildPath $output_fname
+                $output_video_fname = $output_path + $input_video_fname_extension
 
+                Write-Host "---------x264-params: $x_params ----------------" -ForegroundColor Red
+                ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -x264-params $x_params -c:a copy $output_video_fname
 
+                $output_log_fname = $output_path + ".log"
+                Merge-Output-Params-Variable | Out-File -FilePath $output_log_fname -Encoding UTF8 -NoNewline
 
-            Write-Host "---------x264-params: $x_params ----------------" -ForegroundColor Red
-            ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v 1000k -x264-params $x_params -c:a copy $output_video_fname
+                # Log VMAF path is supplied in param string delimited by colon, so there might be problems in providing full path
+                $output_vmaf_xml_fname = $output_fname + ".xml"
+                ffmpeg -hide_banner -loglevel warning -i $output_video_fname -i $input_video_fname -lavfi libvmaf=log_path=$($output_vmaf_xml_fname):n_threads=$($num_of_threads):feature=name=psnr -f null -
 
-            $output_log_fname = $output_fname + ".log"
-            Merge-Output-Params-Variable | Out-File -FilePath $output_log_fname -Encoding UTF8 -NoNewline
-
-            $output_vmaf_xml_fname = $output_fname + ".xml"
-
-            ffmpeg -hide_banner -loglevel warning -i $output_video_fname -i $input_video_fname -lavfi libvmaf=log_path=$($output_vmaf_xml_fname):n_threads=2:feature=name=psnr -f null -
-
-            $output_vmaf_csv_fname = $output_fname + ".csv"
-            #Select-Xml -Path $output_vmaf_fname -XPath "/VMAF/pooledmetrics" | Select-Object -ExpandProperty Node | Select-Object -ExpandProperty InnerText | Add-Content -Path $output_vmaf_fname -Encoding UTF8 -NoNewline
-            Select-Xml -Path $output_vmaf_xml_fname -XPath "/VMAF/pooled_metrics" | ForEach-Object { $_.Node.metric} | ConvertTo-Csv | Add-Content -Path $output_vmaf_csv_fname -Encoding UTF8
-
+                $output_vmaf_csv_fname = $output_path + ".csv"
+                #Select-Xml -Path $output_vmaf_fname -XPath "/VMAF/pooledmetrics" | Select-Object -ExpandProperty Node | Select-Object -ExpandProperty InnerText | Add-Content -Path $output_vmaf_fname -Encoding UTF8 -NoNewline
+                Select-Xml -Path $output_vmaf_xml_fname -XPath "/VMAF/pooled_metrics" | ForEach-Object { $_.Node.metric} | ConvertTo-Csv | Add-Content -Path $output_vmaf_csv_fname -Encoding UTF8
+                
+                # Move VMAF log to output directory
+                Move-Item -Path $output_vmaf_xml_fname -Destination $output_directory
+            }
         }
     }
 
     if ($fullmode){
-        Write-Host "fsdfsdfsd" -ForegroundColor Magenta
+        Write-Host "Not yet implemented" -ForegroundColor Magenta
     }
 }
 
@@ -187,6 +201,16 @@ Write-Host "STARTING" -ForegroundColor Magenta  -NoNewline
 Write-Host (("=" * ($width/2 - 6)) -join "") -ForegroundColor Cyan
 
 enum var_types {int = 1; float = 2; string = 3; bool = 4}
+
+############################# Rate control type #######################################
+
+# Bitrate in kbps. Bitrate is not present in "var_names" variable
+$_bitrates = @{
+    default=2000
+    type=[var_types]::int
+    available_values=2000,3000,4000
+    value=$null
+}
 
 ########################### Frame-type options ########################################
 
@@ -339,8 +363,6 @@ foreach ($var_name in $var_names) {
 }
 ##########################
 
-
-
 if ($fullmode) {
     Write-Host "Number of combinations in full mode: $num_of_combinations_full_mesh" -foregroundcolor green
 }
@@ -349,4 +371,3 @@ else{
 }
 
 Start-Conversion $fullmode
-
