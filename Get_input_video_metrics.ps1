@@ -23,6 +23,8 @@ $dims = $resolution_raw -split "x"
 $resolution = [int](([float]$dims[0]) * ([float]$dims[1]))
 
 $bitrate = ffprobe -v error -select_streams v:0 -show_entries stream=bit_rate -of csv=s=x:p=0 $input_video_file
+# Remove all characters except digits
+$bitrate = $bitrate -replace "[^0-9]",""
 
 Add-Content -Path $output_file -Value "video;si;ti;resolution;bitrate"
 Add-Content -Path $output_file -Value "$($video_basename);$($si);$($ti);$($resolution);$($bitrate)"

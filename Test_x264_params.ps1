@@ -1,5 +1,9 @@
 param ([switch]$fullmode, [string]$input_video_fname, [string]$test_single_param, [string]$output_directory)
 
+
+$bitrate_low_threshold = 400
+$bitrate_upper_threshold = 6000
+
 $num_of_threads = 4
 if ($IsWindows){
     $processor = Get-ComputerInfo -Property CsProcessors
@@ -142,7 +146,6 @@ function Start-Conversion {
                 (Get-Variable -Name $var_name -ErrorAction SilentlyContinue).Value.value = $val
                 $correct_var_name = $var_name.Substring(1).Replace("_","-")
                 $x_params_current_variable += ":" + $correct_var_name + "=" + $val #(Get-Variable $var_name).Value.value
-                #Write-Host $x_params
             }
 
             if ($var_name -eq "_keyint"){
@@ -161,16 +164,24 @@ function Start-Conversion {
             $x_params += $x_params_current_variable
             
             # Test params per different bitrate
-            $bitrate = $_bitrates.default
-            foreach ($bit in $_bitrates.available_values){
-                $bitrate = $bit
+            for ($i = 0; $i -lt 5; $i++) {
+                $bitrate = Get-Random -Minimum $bitrate_low_threshold -Maximum $bitrate_upper_threshold
                 Write-Host "Testing bitrate $bitrate" -ForegroundColor Cyan
+
                 $output_fname = $input_video_fname_base_name + "+" + $var_name + "=" + $val + "+" + $bitrate
                 $output_path = Join-Path -Path $output_directory -ChildPath $output_fname
                 $output_video_fname = $output_path + $input_video_fname_extension
 
                 Write-Host "---------x264-params: $x_params ----------------" -ForegroundColor Red
-                ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -x264-params $x_params -c:a copy $output_video_fname
+                if ($IsWindows)
+                {
+                    ffmpeg -y -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -pass 1 -an -f null NUL && ` ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -pass 2 -b:a 128k $output_video_fname
+                }
+                else {
+                    ffmpeg -y -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -pass 1 -an -f null /dev/null && \ ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -pass 2 -b:a 128k $output_video_fname
+
+                }
+                #ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -x264-params $x_params -c:a copy $output_video_fname
 
                 $output_log_fname = $output_path + ".log"
                 Merge-Output-Params-Variable | Out-File -FilePath $output_log_fname -Encoding UTF8 -NoNewline

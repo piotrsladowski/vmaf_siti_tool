@@ -12,16 +12,16 @@ $video = $video_metrics.video
 $si = $video_metrics.si
 $ti = $video_metrics.ti
 $resolution = $video_metrics.resolution
-$bitrate = $video_metrics.bitrate
+$input_bitrate = $video_metrics.bitrate
 
 $output_file = Join-Path $output_directory "$($video).csv"
-$data = Import-Csv -Delimiter ';' -Path $log_csv_filename -Header "Filename", "Param", "Value"
+$data = Import-Csv -Delimiter ';' -Path $log_csv_filename -Header "Filename", "Param", "Output_bitrate", "Value"
 $headers = $data.Param | Select-Object -Unique
 $tested_params = $headers -replace "=.*" | Select-Object -Unique
 
 $def_values = Import-Csv -Delimiter ';' -Path $def_values_csv -Header "Param", "Value"
 
-$header_line = "video;si;ti;resolution;bitrate;vmaf"
+$header_line = "video;si;ti;resolution;input_bitrate;vmaf;output_bitrate"
 foreach ($t_param in $tested_params) {
     $header_line += ";$t_param"
 }
@@ -30,9 +30,10 @@ Add-Content -Path $output_file -Value $header_line
 foreach ($row in $data) {
     $vmaf = $row.Value
     $param = $row.Param
+    $output_bitrate = $row.Output_bitrate
     $param_name = $param -replace "=.*"
     $param_value = $param -replace ".*="
-    $line = "$video;$si;$ti;$resolution;$bitrate;$vmaf"
+    $line = "$video;$si;$ti;$resolution;$input_bitrate;$vmaf;$output_bitrate"
     foreach ($t_param in $tested_params) {
         if ($t_param -eq $param_name) {
             $line += ";$param_value"
