@@ -1,4 +1,4 @@
-param ([switch]$fullmode, [string]$input_video_fname, [string]$test_single_param, [string]$output_directory)
+param ([switch]$fullmode, [string]$input_video_fname, [string]$test_single_param, [string]$output_directory, [switch]$twopass)
 
 
 $bitrate_low_threshold = 400
@@ -173,13 +173,19 @@ function Start-Conversion {
                 $output_video_fname = $output_path + $input_video_fname_extension
 
                 Write-Host "---------x264-params: $x_params ----------------" -ForegroundColor Red
-                if ($IsWindows)
+                if ($twopass)
                 {
-                    ffmpeg -y -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -pass 1 -an -f null NUL && ` ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -pass 2 -b:a 128k $output_video_fname
+                    if ($IsWindows)
+                    {
+                        ffmpeg -y -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -x264-params $x_params -pass 1 -an -f null NUL && ` ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -pass 2 $output_video_fname
+                    }
+                    else {
+                        ffmpeg -y -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -x264-params $x_params -pass 1 -an -f null /dev/null && \ ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -pass 2 $output_video_fname
+
+                    }
                 }
                 else {
-                    ffmpeg -y -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -pass 1 -an -f null /dev/null && \ ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -pass 2 -b:a 128k $output_video_fname
-
+                    ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -x264-params $x_params -c:a copy $output_video_fname
                 }
                 #ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -b:v "$($bitrate)k" -x264-params $x_params -c:a copy $output_video_fname
 
@@ -212,6 +218,10 @@ Write-Host "STARTING" -ForegroundColor Magenta  -NoNewline
 Write-Host (("=" * ($width/2 - 6)) -join "") -ForegroundColor Cyan
 
 enum var_types {int = 1; float = 2; string = 3; bool = 4}
+
+################################# Presets ###########################################
+
+$presets = @("ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow", "placebo")
 
 ############################# Rate control type #######################################
 
