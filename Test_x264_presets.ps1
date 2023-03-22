@@ -45,7 +45,7 @@ function Start-Conversion {
                 $bitrate = Get-Random -Minimum $bitrate_low_threshold -Maximum $bitrate_upper_threshold
                 Write-Host "Testing bitrate $bitrate" -ForegroundColor Cyan
 
-                $output_fname = $input_video_fname_base_name + "+" + $var_name + "=" + $val + "+" + $bitrate
+                $output_fname = $input_video_fname_base_name + "+" + "preset" + "=" + $preset + "+" + $bitrate
                 $output_path = Join-Path -Path $output_directory -ChildPath $output_fname
                 $output_video_fname = $output_path + $input_video_fname_extension
 

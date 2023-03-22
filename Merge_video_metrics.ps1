@@ -28,6 +28,10 @@ foreach ($t_param in $tested_params) {
 Add-Content -Path $output_file -Value $header_line
 
 foreach ($row in $data) {
+    $log_csv_fname = $row.Filename
+    if($log_csv_fname -ne $video) {
+        continue
+    }
     $vmaf = $row.Value
     $param = $row.Param
     $output_bitrate = $row.Output_bitrate
