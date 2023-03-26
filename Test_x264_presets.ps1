@@ -61,7 +61,7 @@ function Start-Conversion {
                     }
                 }
                 else {
-                    ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -preset $preset -b:v "$($bitrate)k" -c:a copy $output_video_fname
+                    ffmpeg -y -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -preset $preset -b:v "$($bitrate)k" -c:a copy $output_video_fname
                 }
 
                 # Log VMAF path is supplied in param string delimited by colon, so there might be problems in providing full path

@@ -15,8 +15,21 @@ if ($siti_log_file -eq $null) {
 }
 $siti = Get-Content $siti_log_file.FullName | Out-String | ConvertFrom-Json
 
-$si = $siti.si | Measure-Object -Average | Select-Object -ExpandProperty Average
-$ti = $siti.ti | Measure-Object -Average | Select-Object -ExpandProperty Average
+$si = $siti.si | Measure-Object -AllStats
+$ti = $siti.ti | Measure-Object -AllStats
+
+$si_avg = [math]::Round($si.Average, 2)
+$si_std = [math]::Round($si.StandardDeviation, 2)
+$si_min = [math]::Round($si.Minimum, 2)
+$si_max = [math]::Round($si.Maximum, 2)
+
+$ti_avg = [math]::Round($ti.Average, 2)
+$ti_std = [math]::Round($ti.StandardDeviation, 2)
+$ti_min = [math]::Round($ti.Minimum, 2)
+$ti_max = [math]::Round($ti.Maximum, 2)
+
+$criticality = [math]::Log($si_avg * $ti_avg, 2)
+$criticality = [math]::Round($criticality, 2)
 
 $resolution_raw = (ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 $input_video_file)
 $dims = $resolution_raw -split "x"
@@ -26,6 +39,6 @@ $bitrate = ffprobe -v error -select_streams v:0 -show_entries stream=bit_rate -o
 # Remove all characters except digits
 $bitrate = $bitrate -replace "[^0-9]",""
 
-Add-Content -Path $output_file -Value "video;si;ti;resolution;bitrate"
-Add-Content -Path $output_file -Value "$($video_basename);$($si);$($ti);$($resolution);$($bitrate)"
+Add-Content -Path $output_file -Value "video;si_avg;si_std;si_min;si_max;ti_avg;ti_std;ti_min;ti_max;criticality;resolution;bitrate"
+Add-Content -Path $output_file -Value "$($video_basename);$($si_avg);$($si_std);$($si_min);$($si_max);$($ti_avg);$($ti_std);$($ti_min);$($ti_max);$($criticality);$($resolution);$($bitrate)"
 

@@ -9,8 +9,18 @@ $video_metrics = Import-Csv -Delimiter ';' -Path $input_video_metric
 
 $video_metrics
 $video = $video_metrics.video
-$si = $video_metrics.si
-$ti = $video_metrics.ti
+$si_avg = $video_metrics.si_avg
+$si_std = $video_metrics.si_std
+$si_min = $video_metrics.si_min
+$si_max = $video_metrics.si_max
+
+$ti_avg = $video_metrics.ti_avg
+$ti_std = $video_metrics.ti_std
+$ti_min = $video_metrics.ti_min
+$ti_max = $video_metrics.ti_max
+
+$criticality = $video_metrics.criticality
+
 $resolution = $video_metrics.resolution
 $input_bitrate = $video_metrics.bitrate
 
@@ -21,7 +31,7 @@ $tested_params = $headers -replace "=.*" | Select-Object -Unique
 
 $def_values = Import-Csv -Delimiter ';' -Path $def_values_csv -Header "Param", "Value"
 
-$header_line = "video;si;ti;resolution;input_bitrate;vmaf;output_bitrate"
+$header_line = "video;si_avg;si_std;si_min;si_max;ti_avg;ti_std;ti_min;ti_max;criticality;resolution;input_bitrate;vmaf;output_bitrate"
 foreach ($t_param in $tested_params) {
     $header_line += ";$t_param"
 }
@@ -37,7 +47,7 @@ foreach ($row in $data) {
     $output_bitrate = $row.Output_bitrate
     $param_name = $param -replace "=.*"
     $param_value = $param -replace ".*="
-    $line = "$video;$si;$ti;$resolution;$input_bitrate;$vmaf;$output_bitrate"
+    $line = "$video;$si_avg;$si_std;$si_min;$si_max;$ti_avg;$ti_std;$ti_min;$ti_max;$criticality;$resolution;$input_bitrate;$vmaf;$output_bitrate"
     foreach ($t_param in $tested_params) {
         if ($t_param -eq $param_name) {
             $line += ";$param_value"
