@@ -1,4 +1,10 @@
-param ([switch]$fullmode, [string]$input_video_fname, [string]$test_single_param, [string]$output_directory, [switch]$twopass)
+param ([switch]$fullmode, [string]$input_video_fname, [string]$test_single_param, [string]$output_directory, [switch]$twopass, [int]$number_of_different_bitrate)
+
+$num_of_different_bitrate = 5
+if (($number_of_different_bitrate -match '^[0-9]+$') -and ($number_of_different_bitrate -gt 0)){
+    $num_of_different_bitrate = $number_of_different_bitrate
+}
+Write-Host "Number of different bitrate: $num_of_different_bitrate"
 
 
 $bitrate_low_threshold = 400
@@ -41,7 +47,7 @@ function Start-Conversion {
         Write-Host (("=" * ($width/2 - $preset_len - 9)) -join "") -ForegroundColor Cyan
             
             # Test params per different bitrate
-            for ($i = 0; $i -lt 5; $i++) {
+            for ($i = 0; $i -lt $num_of_different_bitrate; $i++) {
                 $bitrate = Get-Random -Minimum $bitrate_low_threshold -Maximum $bitrate_upper_threshold
                 Write-Host "Testing bitrate $bitrate" -ForegroundColor Cyan
 
@@ -57,7 +63,6 @@ function Start-Conversion {
                     }
                     else {
                         ffmpeg -y -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -preset $preset -b:v "$($bitrate)k" -pass 1 -an -f null /dev/null && \ ffmpeg -hide_banner -loglevel warning -i $input_video_fname -c:v libx264 -preset $preset -b:v "$($bitrate)k" -pass 2  $output_video_fname
-
                     }
                 }
                 else {

@@ -9,7 +9,7 @@ $video_basename = Split-Path $input_video_file -LeafBase
 $output_file = Join-Path $output_directory "$($video_basename).csv"
 
 $siti_log_file = Get-ChildItem -Path $siti_output_dir -Filter "$video_basename.json"
-if ($siti_log_file -eq $null) {
+if ($null -eq $siti_log_file) {
     Write-Host "SITI log file not found for $video_basename"
     exit(1)
 }

@@ -20,6 +20,7 @@ $ti_min = $video_metrics.ti_min
 $ti_max = $video_metrics.ti_max
 
 $criticality = $video_metrics.criticality
+$criticality = [math]::Round($criticality, 2)
 
 $resolution = $video_metrics.resolution
 $input_bitrate = $video_metrics.bitrate
