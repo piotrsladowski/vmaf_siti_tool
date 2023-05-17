@@ -1,4 +1,4 @@
-param ([switch]$fullmode, [string]$input_video_fname, [string]$test_single_param, [string]$output_directory, [switch]$twopass, [int]$number_of_different_bitrate)
+param ([switch]$fullmode, [string]$input_video_fname, [string]$test_single_param, [string]$output_directory, [switch]$twopass, [int]$number_of_different_bitrate, [switch]$remove_videos)
 
 $num_of_different_bitrate = 5
 if (($number_of_different_bitrate -match '^[0-9]+$') -and ($number_of_different_bitrate -gt 0)){
@@ -8,7 +8,7 @@ Write-Host "Number of different bitrate: $num_of_different_bitrate"
 
 
 $bitrate_low_threshold = 400
-$bitrate_upper_threshold = 6000
+$bitrate_upper_threshold = 4000
 
 $num_of_threads = 4
 if ($IsWindows){
@@ -27,7 +27,13 @@ if ([string]::IsNullOrEmpty($output_directory)){
     $output_directory = "encoded_results"
 }
 
+# Remove slash at the end of the path if it exists
+if ($output_directory.EndsWith("\") -or $output_directory.EndsWith("/")){
+    $output_directory = $output_directory.Substring(0, $output_directory.Length - 1)
+}
+
 New-Item -Name $output_directory -ItemType Directory -Force
+New-Item -Name ("$($output_directory)_invalid") -ItemType Directory -Force
 $output_directory = Resolve-Path $output_directory
 
 $input_video_fname_base_name = (Get-Item $input_video_fname).BaseName
@@ -77,8 +83,25 @@ function Start-Conversion {
                 #Select-Xml -Path $output_vmaf_fname -XPath "/VMAF/pooledmetrics" | Select-Object -ExpandProperty Node | Select-Object -ExpandProperty InnerText | Add-Content -Path $output_vmaf_fname -Encoding UTF8 -NoNewline
                 Select-Xml -Path $output_vmaf_xml_fname -XPath "/VMAF/pooled_metrics" | ForEach-Object { $_.Node.metric} | ConvertTo-Csv | Add-Content -Path $output_vmaf_csv_fname -Encoding UTF8
                 
-                # Move VMAF log to output directory
-                Move-Item -Path $output_vmaf_xml_fname -Destination $output_directory
+                $vmaf_values = Select-Xml -Path $output_vmaf_xml_fname -XPath "/VMAF/frames" | ForEach-Object { $_.Node.frame.vmaf }
+                $low_vmaf_found = $false
+                foreach ($value in $vmaf_values) {
+                    if ([int]$value -lt 3.0) {
+                        $low_vmaf_found = $true
+                        break
+                    }
+                }
+                if ($low_vmaf_found) {
+                    Move-Item -Path $output_video_fname -Destination ("$($output_directory)_invalid")
+                    Move-Item -Path $output_vmaf_xml_fname -Destination ("$($output_directory)_invalid")
+                    Move-Item -Path $output_vmaf_csv_fname -Destination ("$($output_directory)_invalid")
+                    Write-Output $file
+                }
+                else {
+                    Move-Item -Path $output_vmaf_xml_fname -Destination $output_directory
+                }
+
+                
             }
         }
     }
