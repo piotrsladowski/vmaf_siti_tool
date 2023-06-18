@@ -1,13 +1,20 @@
 param ([switch]$fullmode, [string]$input_video_fname, [string]$test_single_param, [string]$output_directory, [switch]$twopass)
 
 
-$bitrate_low_threshold = 400
-$bitrate_upper_threshold = 6000
+$bitrate_low_threshold = 300
+$bitrate_upper_threshold = 4000
 
+$num_of_threads = 4
 $num_of_threads = 4
 if ($IsWindows){
     $processor = Get-ComputerInfo -Property CsProcessors
     $num_of_threads = $processor.CsProcessors.NumberOfLogicalProcessors
+}
+if ($IsLinux){
+    $num_of_threads = $(nproc)
+    if ($num_of_threads -gt 10){
+        $num_of_threads = $num_of_threads - 5
+    }
 }
 
 if ([string]::IsNullOrEmpty($test_single_param)){

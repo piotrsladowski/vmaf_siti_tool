@@ -15,6 +15,12 @@ if ($IsWindows){
     $processor = Get-ComputerInfo -Property CsProcessors
     $num_of_threads = $processor.CsProcessors.NumberOfLogicalProcessors
 }
+if ($IsLinux){
+    $num_of_threads = $(nproc)
+    if ($num_of_threads -gt 10){
+        $num_of_threads = $num_of_threads - 5
+    }
+}
 
 if ([string]::IsNullOrEmpty($test_single_param)){
     Write-Host "Testing all parameters"
@@ -25,6 +31,10 @@ else {
 
 if ([string]::IsNullOrEmpty($output_directory)){
     $output_directory = "encoded_results"
+}
+
+if ([string]::IsNullOrEmpty($global:processed_videos)){
+    $global:processed_videos = 0
 }
 
 # Remove slash at the end of the path if it exists
@@ -80,7 +90,6 @@ function Start-Conversion {
                 ffmpeg -hide_banner -loglevel warning -i $output_video_fname -i $input_video_fname -lavfi libvmaf=log_path=$($output_vmaf_xml_fname):n_threads=$($num_of_threads):feature=name=psnr -f null -
 
                 $output_vmaf_csv_fname = $output_path + ".csv"
-                #Select-Xml -Path $output_vmaf_fname -XPath "/VMAF/pooledmetrics" | Select-Object -ExpandProperty Node | Select-Object -ExpandProperty InnerText | Add-Content -Path $output_vmaf_fname -Encoding UTF8 -NoNewline
                 Select-Xml -Path $output_vmaf_xml_fname -XPath "/VMAF/pooled_metrics" | ForEach-Object { $_.Node.metric} | ConvertTo-Csv | Add-Content -Path $output_vmaf_csv_fname -Encoding UTF8
                 
                 $vmaf_values = Select-Xml -Path $output_vmaf_xml_fname -XPath "/VMAF/frames" | ForEach-Object { $_.Node.frame.vmaf }
@@ -92,16 +101,23 @@ function Start-Conversion {
                     }
                 }
                 if ($low_vmaf_found) {
-                    Move-Item -Path $output_video_fname -Destination ("$($output_directory)_invalid")
+                    if ($remove_videos) {
+                        Remove-Item -Path $output_video_fname
+                    }
+                    else {
+                        Move-Item -Path $output_video_fname -Destination ("$($output_directory)_invalid")
+                    }
                     Move-Item -Path $output_vmaf_xml_fname -Destination ("$($output_directory)_invalid")
                     Move-Item -Path $output_vmaf_csv_fname -Destination ("$($output_directory)_invalid")
-                    Write-Output $file
                 }
                 else {
                     Move-Item -Path $output_vmaf_xml_fname -Destination $output_directory
                 }
 
-                
+                if ($remove_videos) {
+                    Remove-Item -Path $output_video_fname
+                }
+
             }
         }
     }
@@ -123,3 +139,6 @@ $presets = @("ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "
 
 
 Start-Conversion $fullmode
+
+$global:processed_videos += 1
+Write-Host "Processed videos: $($global:processed_videos)" -ForegroundColor Cyan

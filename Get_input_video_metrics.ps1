@@ -3,7 +3,7 @@ param ([string]$input_video_file, [string]$siti_output_dir, [string]$output_dire
 if ([string]::IsNullOrEmpty($output_directory)){
     $output_directory = "video_metrics_basic"
 }
-New-Item -Name $output_directory -ItemType Directory -Force
+[void](New-Item -Name $output_directory -ItemType Directory -Force)
 
 $video_basename = Split-Path $input_video_file -LeafBase
 $output_file = Join-Path $output_directory "$($video_basename).csv"
@@ -31,14 +31,58 @@ $ti_max = [math]::Round($ti.Maximum, 2)
 $criticality = [math]::Log($si_avg * $ti_avg, 2)
 $criticality = [math]::Round($criticality, 2)
 
+# metrics are extracted separately because ffprobe is not adding separator between null values
 $resolution_raw = (ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 $input_video_file)
 $dims = $resolution_raw -split "x"
-$resolution = [int](([float]$dims[0]) * ([float]$dims[1]))
+$width = [int]([float]$dims[0])
+$height = [int]([float]$dims[1])
+$resolution = [int]($width * $height)
 
 $bitrate = ffprobe -v error -select_streams v:0 -show_entries stream=bit_rate -of csv=s=x:p=0 $input_video_file
 # Remove all characters except digits
-$bitrate = $bitrate -replace "[^0-9]",""
+$input_bitrate = $bitrate -replace "[^0-9]",""
+$input_bitrate = [float](($input_bitrate -as [int]) / 1000)
 
-Add-Content -Path $output_file -Value "video;si_avg;si_std;si_min;si_max;ti_avg;ti_std;ti_min;ti_max;criticality;resolution;bitrate"
-Add-Content -Path $output_file -Value "$($video_basename);$($si_avg);$($si_std);$($si_min);$($si_max);$($ti_avg);$($ti_std);$($ti_min);$($ti_max);$($criticality);$($resolution);$($bitrate)"
+$duration_original = [float](ffprobe -v error -select_streams v:0 -show_entries stream=duration -of csv=s=x:p=0 $input_video_file)
+
+$header_values = @(
+    "video",
+    "si_avg",
+    "si_std",
+    "si_min",
+    "si_max",
+    "ti_avg",
+    "ti_std",
+    "ti_min",
+    "ti_max",
+    "criticality",
+    "resolution",
+    "width",
+    "height",
+    "input_bitrate",
+    "duration_original"
+)
+
+$header = $header_values -join ";"
+$row_values = @(
+    $video_basename,
+    $si_avg,
+    $si_std,
+    $si_min,
+    $si_max,
+    $ti_avg,
+    $ti_std,
+    $ti_min,
+    $ti_max,
+    $criticality,
+    $resolution,
+    $width,
+    $height,
+    $input_bitrate,
+    $duration_original
+)
+$row = $row_values -join ";"
+
+Add-Content -Path $output_file -Value $header
+Add-Content -Path $output_file -Value $row
 

@@ -3,11 +3,10 @@ param ([string]$input_video_metric, [string]$log_csv_filename, [string]$output_d
 if ([string]::IsNullOrEmpty($output_directory)){
     $output_directory = "video_metrics_full"
 }
-New-Item -Name $output_directory -ItemType Directory -Force
+[void](New-Item -Name $output_directory -ItemType Directory -Force)
 
 $video_metrics = Import-Csv -Delimiter ';' -Path $input_video_metric 
 
-$video_metrics
 $video = $video_metrics.video
 $si_avg = $video_metrics.si_avg
 $si_std = $video_metrics.si_std
@@ -20,10 +19,12 @@ $ti_min = $video_metrics.ti_min
 $ti_max = $video_metrics.ti_max
 
 $criticality = $video_metrics.criticality
-$criticality = [math]::Round($criticality, 2)
 
 $resolution = $video_metrics.resolution
-$input_bitrate = $video_metrics.bitrate
+$width = $video_metrics.width
+$height = $video_metrics.height
+$input_bitrate = $video_metrics.input_bitrate
+$duration_original = $video_metrics.duration_original
 
 $output_file = Join-Path $output_directory "$($video).csv"
 $data = Import-Csv -Delimiter ';' -Path $log_csv_filename -Header "Filename", "Param", "Output_bitrate", "Value"
@@ -32,7 +33,28 @@ $tested_params = $headers -replace "=.*" | Select-Object -Unique
 
 $def_values = Import-Csv -Delimiter ';' -Path $def_values_csv -Header "Param", "Value"
 
-$header_line = "video;si_avg;si_std;si_min;si_max;ti_avg;ti_std;ti_min;ti_max;criticality;resolution;input_bitrate;vmaf;output_bitrate"
+$header_values = @(
+    "video",
+    "si_avg",
+    "si_std",
+    "si_min",
+    "si_max",
+    "ti_avg",
+    "ti_std",
+    "ti_min",
+    "ti_max",
+    "criticality",
+    "resolution",
+    "width",
+    "height",
+    "input_bitrate",
+    "duration_original",
+    "vmaf",
+    "output_bitrate"
+)
+
+$header_line = $header_values -join ";"
+
 foreach ($t_param in $tested_params) {
     $header_line += ";$t_param"
 }
@@ -48,7 +70,26 @@ foreach ($row in $data) {
     $output_bitrate = $row.Output_bitrate
     $param_name = $param -replace "=.*"
     $param_value = $param -replace ".*="
-    $line = "$video;$si_avg;$si_std;$si_min;$si_max;$ti_avg;$ti_std;$ti_min;$ti_max;$criticality;$resolution;$input_bitrate;$vmaf;$output_bitrate"
+    $row_values = @(
+        $video,
+        $si_avg,
+        $si_std,
+        $si_min,
+        $si_max,
+        $ti_avg,
+        $ti_std,
+        $ti_min,
+        $ti_max,
+        $criticality,
+        $resolution,
+        $width,
+        $height,
+        $input_bitrate,
+        $duration_original,
+        $vmaf,
+        $output_bitrate
+    )
+    $line = $row_values -join ";"
     foreach ($t_param in $tested_params) {
         if ($t_param -eq $param_name) {
             $line += ";$param_value"
