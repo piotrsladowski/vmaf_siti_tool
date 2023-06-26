@@ -42,6 +42,7 @@ $output.Keys | Sort-Object | ForEach-Object {
     $key = $_
     $line = "$key"
     $sum = 0.0
+    $num_of_null_values = 0
     foreach ($header in $headers) {
         $value = $output[$key][$header]
         if ($value) {
@@ -51,9 +52,10 @@ $output.Keys | Sort-Object | ForEach-Object {
             $line += ";$value"
         } else {
             $line += ";"
+            $num_of_null_values++
         }
     }
-    $mean = $sum / $headers.Count
+    $mean = $sum / ($headers.Count - $num_of_null_values)
     $mean = [math]::Round($mean, 3)
     $line += ";$mean"
     $line = $line -replace '\.', ','
