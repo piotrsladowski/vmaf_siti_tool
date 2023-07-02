@@ -45,6 +45,46 @@ $input_bitrate = [float](($input_bitrate -as [int]) / 1000)
 
 $duration_original = [float](ffprobe -v error -select_streams v:0 -show_entries stream=duration -of csv=s=x:p=0 $input_video_file)
 
+
+# Metadate from Tiktok API
+
+$json_1 = Get-Content -Path ".\metadata.json" -Raw | ConvertFrom-Json
+$json_2 = Get-Content -Path ".\trending.json" -Raw | ConvertFrom-Json
+
+$video_id = $video_basename
+
+# Find json object with video_id
+$current_video = $json_1 | Where-Object { $_.id -eq $video_id }
+# check if current_video is null
+if ($current_video -eq $null) {
+    $current_video = $json_2 | Where-Object { $_.id -eq $video_id }
+    if ($current_video -eq $null) {
+        Write-Host "Video not found"
+        exit(1)
+    }
+}
+
+$video_meta = $current_video.videoMeta
+$author_meta = $current_video.authorMeta
+$music_meta = $current_video.musicMeta
+$create_time = $current_video.createTime
+
+$date = get-date "1/1/1970"
+$year = $date.AddSeconds($create_time).ToLocalTime().Year
+
+$digg_count = $current_video.diggCount
+$share_count = $current_video.shareCount
+$play_count = $current_video.playCount
+$comment_count = $current_video.commentCount
+
+$author_fans = $author_meta.fans
+$author_following = $author_meta.following
+$author_heart = $author_meta.heart
+$author_video = $author_meta.video
+$author_digg = $author_meta.digg
+
+
+
 $header_values = @(
     "video",
     "si_avg",
@@ -60,7 +100,17 @@ $header_values = @(
     "width",
     "height",
     "input_bitrate",
-    "duration_original"
+    "duration_original",
+    "year",
+    "digg_count",
+    "share_count",
+    "play_count",
+    "comment_count",
+    "author_fans",
+    "author_following",
+    "author_heart",
+    "author_video",
+    "author_digg"
 )
 
 $header = $header_values -join ";"
@@ -79,7 +129,17 @@ $row_values = @(
     $width,
     $height,
     $input_bitrate,
-    $duration_original
+    $duration_original,
+    $year,
+    $digg_count,
+    $share_count,
+    $play_count,
+    $comment_count,
+    $author_fans,
+    $author_following,
+    $author_heart,
+    $author_video,
+    $author_digg
 )
 $row = $row_values -join ";"
 
