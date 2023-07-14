@@ -1,14 +1,5 @@
-param ([switch]$fullmode, [string]$input_video_fname, [string]$test_single_param, [string]$output_directory, [switch]$twopass, [int]$number_of_different_bitrate, [switch]$remove_videos)
+param ([string]$input_video_fname, [String[]]$test_param_list, [string]$output_directory, [switch]$twopass, [switch]$remove_videos)
 
-$num_of_different_bitrate = 5
-if (($number_of_different_bitrate -match '^[0-9]+$') -and ($number_of_different_bitrate -gt 0)) {
-    $num_of_different_bitrate = $number_of_different_bitrate
-}
-Write-Host "Number of different bitrate: $num_of_different_bitrate"
-
-
-$bitrate_low_threshold = 400
-$bitrate_upper_threshold = 4000
 
 $num_of_threads = 4
 if ($IsWindows) {
@@ -22,11 +13,13 @@ if ($IsLinux) {
     }
 }
 
-if ([string]::IsNullOrEmpty($test_single_param)) {
+if ([string]::IsNullOrEmpty($test_param_list)) {
     Write-Host "Testing all parameters"
 }
 else {
-    Write-Host "Testing single parameter $test_single_param"
+    foreach ($param in $test_param_list) {
+        Write-Host "Testing param: $param"
+    }
 }
 
 if ([string]::IsNullOrEmpty($output_directory)) {
@@ -122,10 +115,9 @@ function Start-Conversion {
     .DESCRIPTION
     Start conversion.
     #>
-    param ([switch]$fullmode)
     Set-VariableValueToDefault
     foreach ($var_name in $var_names) {
-        if (($var_name -ne $test_single_param) -and !([string]::IsNullOrEmpty($test_single_param))) {
+        if (($var_name -notin $test_param_list) -and !([string]::IsNullOrEmpty($test_param_list))) {
             Write-Host "Skipping variable $var_name" -ForegroundColor DarkYellow
             continue
         }
@@ -179,6 +171,16 @@ function Start-Conversion {
                 (Get-Variable -Name "_min_keyint" -ErrorAction SilentlyContinue).Value.value = $min_key_int
                 Write-Host "min_keyint set to $((Get-Variable -Name "_min_keyint" -ErrorAction SilentlyContinue).Value.value)" -ForegroundColor Blue
             }
+
+            if ($var_name -eq "_pbratio") {
+                (Get-Variable -Name "_no_mbtree" -ErrorAction SilentlyContinue).Value.value = $True
+            }
+
+            if ($var_name -eq "_intra_refresh") {
+                (Get-Variable -Name "_ref" -ErrorAction SilentlyContinue).Value.value = 1
+                (Get-Variable -Name "_b_pyramid" -ErrorAction SilentlyContinue).Value.value = "none"
+            }
+
             # Create x264-params string without current variable
             $exclusion = $var_name
             $x_params = Merge-xparams-String $exclusion
@@ -186,9 +188,7 @@ function Start-Conversion {
             $x_params += $x_params_current_variable
             
             # Test params per different bitrate
-            # Test params per different bitrate
             foreach ($bitrate in $_bitrates.available_values) {
-                #$bitrate = Get-Random -Minimum $bitrate_low_threshold -Maximum $bitrate_upper_threshold
                 Write-Host "Testing bitrate $bitrate" -ForegroundColor Cyan
 
                 $output_fname = $input_video_fname_base_name + "+" + $var_name + "=" + $val + "+" + $bitrate
@@ -245,9 +245,6 @@ function Start-Conversion {
         }
     }
 
-    if ($fullmode) {
-        Write-Host "Not yet implemented" -ForegroundColor Magenta
-    }
 }
 
 
@@ -402,31 +399,104 @@ $_qblur = @{
     value            = $null
 }
 
+
+########################### Analysis ########################################
+
+$_direct = @{
+    default          = "spatial"
+    type             = [var_types]::string
+    available_values = "none", "spatial", "temporal", "auto"
+    value            = $null
+}
+
+$_no_weightb = @{default = $False; type = [var_types]::bool; available_values = $False, $True; value = $null }
+
+$_weightp = @{
+    default          = 2
+    type             = [var_types]::int
+    available_values = 0, 1, 2
+    value            = $null
+}
+
+$_me = @{
+    default          = "hex"
+    type             = [var_types]::string
+    available_values = "dia", "hex", "umh", "esa", "tesa"
+    value            = $null
+}
+
+# $_merange = @{
+#     default          = 16
+#     type             = [var_types]::int
+#     available_values = 16, 24, 32, 48, 64, 96, 128
+#     value            = $null
+# }
+# merange controls the max range of the motion search in pixels. For hex and dia, the range is clamped to 4-16, with a default of 16. For umh and esa, it can be increased beyond the default 16 to allow for a wider-range motion search, which is useful on HD footage and for high-motion footage. Note that for umh, esa, and tesa, increasing merange will significantly slow down encoding.
+
+#$_mvrange = TODO
+
+$_subme = @{
+    default          = 7
+    type             = [var_types]::int
+    available_values = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+    value            = $null
+}
+
+#$_psy_rd = TODO
+
+$_no_psy = @{default = $False; type = [var_types]::bool; available_values = $False, $True; value = $null }
+
+$_no_mixed_refs = @{default = $False; type = [var_types]::bool; available_values = $False, $True; value = $null }
+
+$_no_chroma_me = @{default = $False; type = [var_types]::bool; available_values = $False, $True; value = $null }
+
+$_no_8x8dct = @{default = $False; type = [var_types]::bool; available_values = $False, $True; value = $null }
+
+$_trellis = @{
+    default          = 1
+    type             = [var_types]::int
+    available_values = 0, 1, 2
+    value            = $null
+}
+
+$_no_fast_pskip = @{default = $False; type = [var_types]::bool; available_values = $False, $True; value = $null }
+
+$_no_dct_decimate = @{default = $False; type = [var_types]::bool; available_values = $False, $True; value = $null }
+
+$_nr = @{
+    default          = 100
+    type             = [var_types]::int
+    available_values = 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000
+    value            = $null
+}
+
+# $_deadzone-inter/intra TODO
+
+$_cqm = @{
+    default          = "flat"
+    type             = [var_types]::string
+    available_values = "flat", "jvt"
+    value            = $null
+}
+
 ##########################
 # Initialize variables
-Set-Variable -Option AllScope -Name "var_names" -Value "_keyint", "_min_keyint", "_no_scenecut", "_scenecut", "_intra_refresh", "_bframes", "_b_adapt", "_b_bias", "_b_pyramid", "_open_gop", "_no_cabac", "_ref", "_no_deblock", "_deblock", "_slices", "_slice_max_size", "_slice_max_mbs", "_tff", "_bff", "_constrained_intra", "_pulldown", "_fake_interlaced", "_crf", "_ipratio", "_pbratio", "_chroma_qp_offset", "_aq_mode", "_aq_strength", "_pass", "_no_mbtree", "_qcomp", "_cplxblur", "_qblur"
+Set-Variable -Option AllScope -Name "var_names" -Value "_keyint", "_min_keyint", "_no_scenecut", "_scenecut", "_intra_refresh", "_bframes", "_b_adapt", "_b_bias", "_b_pyramid", "_open_gop", "_no_cabac", "_ref", "_no_deblock", "_deblock", "_slices", "_slice_max_size", "_slice_max_mbs", "_tff", "_bff", "_constrained_intra", "_pulldown", "_fake_interlaced", "_crf", "_ipratio", "_pbratio", "_chroma_qp_offset", "_aq_mode", "_aq_strength", "_pass", "_no_mbtree", "_qcomp", "_cplxblur", "_qblur", "_direct", "_no_weightb", "_weightp", "_me", "_merange", "_mvrange", "_subme", "_psy_rd", "_no_psy", "_no_mixed_refs", "_no_chroma_me", "_no_8x8dct", "_trellis", "_no_fast_pskip", "_no_dct_decimate", "_nr", "_deadzone-inter", "_deadzone-intra", "_cqm"
 
 $x_params = [string]::Empty
-$num_of_combinations_full_mesh = 1
 $num_of_combinations = 1
 
 foreach ($var_name in $var_names) {
     $var_value = (Get-Variable $var_name -ErrorAction SilentlyContinue).Value
     if ($var_value.available_values.Length -gt 0) {
-        $num_of_combinations_full_mesh *= $var_value.available_values.Length
         $num_of_combinations += $var_value.available_values.Length
     }
 }
 ##########################
 
-if ($fullmode) {
-    Write-Host "Number of combinations in full mode: $num_of_combinations_full_mesh" -foregroundcolor green
-}
-else {
-    Write-Host "Number of combinations: $num_of_combinations" -foregroundcolor green
-}
+Write-Host "Number of combinations: $num_of_combinations" -foregroundcolor green
 
-Start-Conversion $fullmode
+Start-Conversion 
 
 $global:processed_videos += 1
 Write-Host "Processed videos: $($global:processed_videos)" -ForegroundColor Cyan
